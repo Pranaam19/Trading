@@ -12,7 +12,6 @@ class OrderMatchingService {
      */
     async processOrder(order) {
         console.log('OrderMatchingService: Processing new order', JSON.stringify(order));
-        
         try {
             // Validate the order data
             if (!order.userId) {
@@ -48,8 +47,10 @@ class OrderMatchingService {
 
             // Create the order using a transaction to ensure it's committed
             const transaction = await sequelize.transaction();
+            let savedOrder;
+            
             try {
-                const savedOrder = await Order.create(order, { transaction });
+                savedOrder = await Order.create(order, { transaction });
                 console.log(`Order created with ID: ${savedOrder.id}`);
                 
                 // Attempt to match the order
@@ -59,15 +60,11 @@ class OrderMatchingService {
                     await this.matchSellOrder(savedOrder, transaction);
                 }
                 
-                // Commit the transaction
                 await transaction.commit();
                 
                 // Reload the order to get the updated status
                 await savedOrder.reload();
                 console.log(`Order ${savedOrder.id} processed with status: ${savedOrder.status}`);
-                
-                // Return the saved order for the rest of the function
-                return savedOrder;
             } catch (error) {
                 // Rollback transaction on error
                 await transaction.rollback();
@@ -75,8 +72,8 @@ class OrderMatchingService {
                 throw error;
             }
             
-            // Get the saved order from the transaction or use the one passed in
-            const processedOrder = savedOrder || order;
+            // Get the processed order
+            const processedOrder = savedOrder;
             
             // Update portfolio immediately for filled or partially filled orders
             if (processedOrder.status === 'filled' || processedOrder.status === 'partially_filled') {
@@ -108,12 +105,12 @@ class OrderMatchingService {
                 // Move the order to transaction history by updating its status
                 console.log(`Moving order ${processedOrder.id} to transaction history with status ${processedOrder.status}`);
             } else {
-                // For pending orders, broadcast an order book update
+                // For confirmed orders, broadcast an order book update
                 if (global.wss) {
                     // Get the asset symbol for this order
                     const asset = await Asset.findByPk(processedOrder.assetId);
                     if (asset) {
-                        console.log(`Broadcasting order book update for ${asset.symbol} after new pending order`);
+                        console.log(`Broadcasting order book update for ${asset.symbol} after new ${processedOrder.side} order`);
                         
                         // Get the updated order book
                         const buyOrders = await Order.findAll({
@@ -154,6 +151,14 @@ class OrderMatchingService {
                                     data: { bids, asks },
                                     timestamp: new Date().toISOString()
                                 }));
+                                
+                                // Also send an order update notification for the new order
+                                client.send(JSON.stringify({
+                                    type: 'order_update',
+                                    order: processedOrder,
+                                    status: processedOrder.status,
+                                    timestamp: new Date().toISOString()
+                                }));
                             }
                         });
                     }
@@ -161,17 +166,7 @@ class OrderMatchingService {
             }
             
             // Return the order with asset information
-            const orderWithAsset = await Order.findByPk(processedOrder.id, {
-                include: [{ model: Asset }]
-            });
-            
-            if (!orderWithAsset) {
-                console.error(`Failed to find order with ID ${processedOrder.id} after processing`);
-                throw new Error(`Order not found after processing: ${processedOrder.id}`);
-            }
-            
-            console.log(`Successfully retrieved order with asset: ${JSON.stringify(orderWithAsset)}`);
-            return orderWithAsset;
+            return this.getOrderWithAsset(processedOrder.id);
         } catch (error) {
             console.error('Error in processOrder:', error);
             throw error;
@@ -405,7 +400,9 @@ class OrderMatchingService {
                     }, { transaction: t });
                     console.log(`Sell order ${sellOrder.id} partially filled, remaining quantity: ${remainingQuantity}`);
                 } else {
-                    console.log(`Sell order ${sellOrder.id} remains pending, no matches found`);
+                    // No matches found, update the order to confirmed status
+                    await sellOrder.update({ status: 'confirmed' }, { transaction: t });
+                    console.log(`Sell order ${sellOrder.id} remains confirmed, no matches found`);
                 }
                 
                 // Get the asset to broadcast order book update
@@ -498,6 +495,30 @@ class OrderMatchingService {
             }
         } catch (error) {
             console.error('Error in updatePortfolios:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Get an order with its associated asset
+     * @param {number} orderId - The order ID
+     * @returns {Promise<Object>} The order with asset information
+     */
+    async getOrderWithAsset(orderId) {
+        try {
+            const orderWithAsset = await Order.findByPk(orderId, {
+                include: [{ model: Asset }]
+            });
+            
+            if (!orderWithAsset) {
+                console.error(`Failed to find order with ID ${orderId}`);
+                throw new Error(`Order not found: ${orderId}`);
+            }
+            
+            console.log(`Successfully retrieved order with asset: ${JSON.stringify(orderWithAsset)}`);
+            return orderWithAsset;
+        } catch (error) {
+            console.error(`Error in getOrderWithAsset for order ${orderId}:`, error);
             throw error;
         }
     }
