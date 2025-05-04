@@ -165,6 +165,22 @@ class OrderMatchingService {
                 }
             }
             
+            // Broadcast the order update to all clients
+            if (global.wss) {
+                console.log(`Broadcasting order update for ${processedOrder.id} to all clients`);
+                global.wss.clients.forEach(client => {
+                    if (client.readyState === 1) { // WebSocket.OPEN
+                        // Send an order update notification
+                        client.send(JSON.stringify({
+                            type: 'order_update',
+                            order: processedOrder,
+                            status: processedOrder.status,
+                            timestamp: new Date().toISOString()
+                        }));
+                    }
+                });
+            }
+            
             // Return the order with asset information
             return this.getOrderWithAsset(processedOrder.id);
         } catch (error) {

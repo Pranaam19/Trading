@@ -226,32 +226,45 @@ export const WebSocketProvider = ({ children }) => {
               }
             }));
             
-            // If order is filled or partially filled, trigger portfolio and order book updates
-            if (orderData.status === 'filled' || orderData.status === 'partially_filled') {
-              console.log('Order filled or partially filled, refreshing data');
-              
-              // Request an immediate order book update
-              if (orderData.Asset?.symbol) {
-                console.log(`Requesting order book update for ${orderData.Asset.symbol} after order update`);
-                socket.send(JSON.stringify({
-                  type: 'get_order_book',
-                  symbol: orderData.Asset.symbol
-                }));
+            // Also dispatch an order status changed event for Dashboard to update recent orders
+            window.dispatchEvent(new CustomEvent('order_status_changed', {
+              detail: {
+                order: orderData,
+                status: orderData.status || data.status,
+                timestamp: Date.now()
               }
-              
-              // Force a data refresh to ensure consistency
-              setTimeout(() => {
-                fetchDataFromAPI();
-                
-                // Dispatch a force update event
-                window.dispatchEvent(new CustomEvent('force_update_all', {
-                  detail: { 
-                    source: 'order_update',
-                    timestamp: Date.now()
-                  }
-                }));
-              }, 500);
+            }));
+            
+            // For any order update (filled, partially filled, or confirmed), trigger updates
+            console.log('Order updated, refreshing data');
+            
+            // Request an immediate order book update
+            if (orderData.Asset?.symbol) {
+              console.log(`Requesting order book update for ${orderData.Asset.symbol} after order update`);
+              socket.send(JSON.stringify({
+                type: 'get_order_book',
+                symbol: orderData.Asset.symbol
+              }));
+            } else if (data.symbol) {
+              console.log(`Requesting order book update for ${data.symbol} after order update`);
+              socket.send(JSON.stringify({
+                type: 'get_order_book',
+                symbol: data.symbol
+              }));
             }
+            
+            // Force a data refresh to ensure consistency
+            setTimeout(() => {
+              fetchDataFromAPI();
+              
+              // Dispatch a force update event
+              window.dispatchEvent(new CustomEvent('force_update_all', {
+                detail: { 
+                  source: 'order_update',
+                  timestamp: Date.now()
+                }
+              }));
+            }, 500); // Short delay to allow backend to update
             break;
 
           case 'trade_notification':
@@ -382,12 +395,17 @@ export const WebSocketProvider = ({ children }) => {
   // Function to place an order
   const placeOrder = (orderData) => {
     if (!ws || ws.readyState !== WebSocket.OPEN) {
-      console.error('WebSocket not connected');
-      return;
+      console.error('WebSocket is not connected');
+      return false;
+    }
+    
+    if (!isAuthenticated) {
+      console.error('User is not authenticated');
+      return false;
     }
     
     // Generate a temporary ID for the order
-    const tempOrderId = `temp-${Date.now()}`;
+    const tempOrderId = `temp-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
     
     // Add the order to local state immediately
     const tempOrder = {
@@ -405,10 +423,22 @@ export const WebSocketProvider = ({ children }) => {
     ws.send(JSON.stringify({
       type: 'place_order',
       ...orderData,
-      userId: user.id // Explicitly include user ID
+      userId: user.id,
+      tempId: tempOrderId
     }));
     
-    console.log('Order placed:', orderData);
+    console.log('Order placed:', tempOrder);
+    
+    // Request an immediate order book update for the asset after a short delay
+    setTimeout(() => {
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        console.log(`Requesting order book update for ${orderData.symbol} after placing order`);
+        ws.send(JSON.stringify({
+          type: 'get_order_book',
+          symbol: orderData.symbol
+        }));
+      }
+    }, 500); // Short delay to allow backend to process the order
     
     // Force an immediate data refresh via REST API
     fetchDataFromAPI();
@@ -448,6 +478,9 @@ export const WebSocketProvider = ({ children }) => {
         }));
       }, delay);
     });
+    
+    // Return the temporary ID
+    return tempOrderId;
   };
 
   return (

@@ -364,8 +364,8 @@ const Trading = () => {
             <Card.Body>
               <Card.Title>Order Book</Card.Title>
               <Row>
-                <Col md={6}>
-                  <h5 className="text-success">Bids (Buy Orders)</h5>
+                <Col md={12}>
+                  <h5 className="text-success">Order Book (Buy Orders)</h5>
                   <Table striped bordered hover size="sm">
                     <thead>
                       <tr>
@@ -386,33 +386,6 @@ const Trading = () => {
                       ) : (
                         <tr>
                           <td colSpan="3" className="text-center">No buy orders</td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </Table>
-                </Col>
-                <Col md={6}>
-                  <h5 className="text-danger">Asks (Sell Orders)</h5>
-                  <Table striped bordered hover size="sm">
-                    <thead>
-                      <tr>
-                        <th>Price</th>
-                        <th>Quantity</th>
-                        <th>Total</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {orderBook.asks && orderBook.asks.length > 0 ? (
-                        orderBook.asks.map((ask, index) => (
-                          <tr key={`ask-${index}`}>
-                            <td className="text-danger">${formatPrice(ask.price)}</td>
-                            <td>{ask.quantity}</td>
-                            <td>${formatPrice(ask.price * ask.quantity)}</td>
-                          </tr>
-                        ))
-                      ) : (
-                        <tr>
-                          <td colSpan="3" className="text-center">No sell orders</td>
                         </tr>
                       )}
                     </tbody>

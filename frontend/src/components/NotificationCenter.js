@@ -1,8 +1,12 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Offcanvas, Badge, ListGroup, Button, Form, InputGroup, Tabs, Tab } from 'react-bootstrap';
 import { Bell, BellFill, Trash, Check, X, Gear } from 'react-bootstrap-icons';
+import { useWebSocket } from '../context/WebSocketContext';
+import { useAuth } from '../context/AuthContext';
 
 const NotificationCenter = () => {
+  const { priceData, rawWs } = useWebSocket();
+  const { user } = useAuth();
   const [show, setShow] = useState(false);
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -16,46 +20,50 @@ const NotificationCenter = () => {
     price: ''
   });
 
-  // Mock notification data
+  // Function to add a new notification
+  const addNotification = useCallback((notification) => {
+    const newId = notifications.length > 0 
+      ? Math.max(...notifications.map(n => n.id)) + 1 
+      : 1;
+    
+    const newNotification = {
+      id: newId,
+      timestamp: new Date(),
+      read: false,
+      ...notification
+    };
+    
+    setNotifications(prev => [newNotification, ...prev]);
+    setUnreadCount(prev => prev + 1);
+    
+    // Show a browser notification if supported
+    if (Notification.permission === 'granted') {
+      new Notification(newNotification.title, {
+        body: newNotification.message,
+        icon: '/favicon.ico'
+      });
+    }
+    
+    return newNotification;
+  }, [notifications]);
+  
+  // Initialize with a welcome notification
   useEffect(() => {
-    const mockNotifications = [
-      {
-        id: 1,
-        type: 'order',
-        title: 'Order Executed',
-        message: 'Your BTC buy order has been executed at $48,250.00',
-        timestamp: new Date(Date.now() - 1000 * 60 * 5),
-        read: false
-      },
-      {
-        id: 2,
-        type: 'price',
-        title: 'Price Alert',
-        message: 'BTC has reached your target price of $48,000.00',
-        timestamp: new Date(Date.now() - 1000 * 60 * 30),
-        read: false
-      },
-      {
-        id: 3,
+    if (notifications.length === 0) {
+      addNotification({
         type: 'system',
-        title: 'System Update',
-        message: 'The trading platform will undergo maintenance on Saturday at 2:00 AM UTC',
-        timestamp: new Date(Date.now() - 1000 * 60 * 60 * 2),
-        read: true
-      },
-      {
-        id: 4,
-        type: 'news',
-        title: 'Market News',
-        message: 'SEC approves new cryptocurrency regulations affecting market liquidity',
-        timestamp: new Date(Date.now() - 1000 * 60 * 60 * 24),
-        read: true
-      }
-    ];
-
-    setNotifications(mockNotifications);
-    setUnreadCount(mockNotifications.filter(n => !n.read).length);
-  }, []);
+        title: 'Welcome to Trading Platform',
+        message: 'You will receive real-time notifications about your orders and price alerts here.',
+        timestamp: new Date(),
+        read: false
+      });
+    }
+    
+    // Request notification permission
+    if (Notification.permission !== 'granted' && Notification.permission !== 'denied') {
+      Notification.requestPermission();
+    }
+  }, [addNotification, notifications.length]);
 
   // Handle close
   const handleClose = () => setShow(false);
@@ -114,6 +122,104 @@ const NotificationCenter = () => {
     const days = Math.floor(diff / 86400000);
     return `${days} day${days !== 1 ? 's' : ''} ago`;
   };
+  
+  // Listen for WebSocket events and other application events
+  useEffect(() => {
+    // Handle order updates
+    const handleOrderUpdate = (event) => {
+      const { order, status } = event.detail;
+      if (!order) return;
+      
+      let title = '';
+      let message = '';
+      
+      if (status === 'filled') {
+        title = 'Order Filled';
+        message = `Your ${order.side} order for ${order.quantity} ${order.Asset?.symbol || 'shares'} has been filled at ${formatCurrency(order.price)}.`;
+      } else if (status === 'partially_filled') {
+        title = 'Order Partially Filled';
+        message = `Your ${order.side} order for ${order.quantity} ${order.Asset?.symbol || 'shares'} has been partially filled at ${formatCurrency(order.price)}.`;
+      } else if (status === 'confirmed') {
+        title = 'Order Confirmed';
+        message = `Your ${order.side} order for ${order.quantity} ${order.Asset?.symbol || 'shares'} at ${formatCurrency(order.price)} has been confirmed.`;
+      }
+      
+      if (title && message) {
+        addNotification({
+          type: 'order',
+          title,
+          message,
+          orderId: order.id
+        });
+      }
+    };
+    
+    // Handle trade notifications
+    const handleTradeNotification = (event) => {
+      const { message, order } = event.detail;
+      
+      if (message && order) {
+        addNotification({
+          type: 'trade',
+          title: 'Trade Completed',
+          message,
+          orderId: order.id
+        });
+      }
+    };
+    
+    // Handle price alerts
+    const checkPriceAlerts = () => {
+      priceAlerts.forEach(alert => {
+        if (!alert.active) return;
+        
+        const currentPrice = priceData[alert.asset]?.price;
+        if (!currentPrice) return;
+        
+        let triggered = false;
+        
+        if (alert.condition === 'above' && currentPrice >= alert.price) {
+          triggered = true;
+        } else if (alert.condition === 'below' && currentPrice <= alert.price) {
+          triggered = true;
+        }
+        
+        if (triggered) {
+          addNotification({
+            type: 'price',
+            title: 'Price Alert',
+            message: `${alert.asset} has ${alert.condition === 'above' ? 'risen above' : 'fallen below'} ${formatCurrency(alert.price)}. Current price: ${formatCurrency(currentPrice)}.`
+          });
+          
+          // Deactivate the alert after triggering
+          togglePriceAlert(alert.id);
+        }
+      });
+    };
+    
+    // Format currency
+    function formatCurrency(value) {
+      if (!value) return '$0.00';
+      return '$' + parseFloat(value).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+    }
+    
+    // Add event listeners
+    window.addEventListener('order_update', handleOrderUpdate);
+    window.addEventListener('order_status_changed', handleOrderUpdate);
+    window.addEventListener('trade_completed', handleTradeNotification);
+    
+    // Check price alerts when price data changes
+    if (Object.keys(priceData).length > 0) {
+      checkPriceAlerts();
+    }
+    
+    // Cleanup
+    return () => {
+      window.removeEventListener('order_update', handleOrderUpdate);
+      window.removeEventListener('order_status_changed', handleOrderUpdate);
+      window.removeEventListener('trade_completed', handleTradeNotification);
+    };
+  }, [addNotification, priceAlerts, priceData]);
 
   // Get icon for notification type
   const getNotificationIcon = (type) => {

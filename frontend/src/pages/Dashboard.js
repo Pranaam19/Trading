@@ -289,8 +289,10 @@ const Dashboard = () => {
           
           if (index !== -1) {
             updatedOrders[index] = { ...updatedOrders[index], ...orderData };
+            console.log(`Updated existing order at index ${index}:`, orderData);
           } else {
             updatedOrders.unshift(orderData);
+            console.log(`Added new order to recent orders:`, orderData);
           }
           
           return updatedOrders;
@@ -310,8 +312,15 @@ const Dashboard = () => {
         
         if (index !== -1) {
           updatedOrders[index] = order;
+          console.log(`Updated existing order at index ${index}:`, order);
         } else {
           updatedOrders.unshift(order);
+          console.log(`Added new order to recent orders:`, order);
+          
+          // Ensure we don't have too many orders in the list
+          if (updatedOrders.length > 50) {
+            updatedOrders.pop();
+          }
         }
         
         return updatedOrders;
@@ -328,7 +337,15 @@ const Dashboard = () => {
           type: 'info',
           message: `Your ${order.side} order for ${order.quantity} ${order.Asset?.symbol || 'shares'} has been partially filled.`
         });
+      } else if (order.status === 'confirmed') {
+        setNotification({
+          type: 'info',
+          message: `Your ${order.side} order for ${order.quantity} ${order.Asset?.symbol || 'shares'} has been confirmed.`
+        });
       }
+      
+      // Also refresh the orders list to ensure we have the latest data
+      fetchOrders();
     };
     
     // Listen for force update events
@@ -366,10 +383,39 @@ const Dashboard = () => {
     };
     window.addEventListener('order_book_update', handleOrderBookUpdate);
     
+    // Add listener for direct order updates
+    const handleOrderUpdate = (event) => {
+      console.log('Order update event received', event.detail);
+      const { order } = event.detail;
+      
+      if (order) {
+        // Update the order in the local state
+        setOrders(prevOrders => {
+          const updatedOrders = [...prevOrders];
+          const index = updatedOrders.findIndex(o => o.id === order.id);
+          
+          if (index !== -1) {
+            updatedOrders[index] = order;
+            console.log(`Updated existing order at index ${index} from order_update:`, order);
+          } else {
+            updatedOrders.unshift(order);
+            console.log(`Added new order to recent orders from order_update:`, order);
+          }
+          
+          return updatedOrders;
+        });
+        
+        // Also refresh the orders list to ensure we have the latest data
+        fetchOrders();
+      }
+    };
+    window.addEventListener('order_update', handleOrderUpdate);
+    
     return () => {
       window.removeEventListener('portfolio_update', handlePortfolioUpdate);
       window.removeEventListener('order_status_changed', handleOrderStatusChanged);
       window.removeEventListener('order_book_update', handleOrderBookUpdate);
+      window.removeEventListener('order_update', handleOrderUpdate);
       window.removeEventListener('force_portfolio_update', handleForcePortfolioUpdate);
       window.removeEventListener('force_orders_update', handleForceOrdersUpdate);
       window.removeEventListener('force_update_all', handleForceUpdateAll);
