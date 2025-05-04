@@ -1,0 +1,221 @@
+/* Animations and Effects for Trading Platform */
+
+/* Gradient Background Animation */
+.gradient-bg {
+  background: linear-gradient(-45deg, #0a2463, #3e92cc, #2a9d8f, #e76f51);
+  background-size: 400% 400%;
+  animation: gradient 15s ease infinite;
+}
+
+@keyframes gradient {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+/* Glass Card Effect */
+.glass-card {
+  background: rgba(255, 255, 255, 0.15);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+  transition: all 0.3s ease;
+}
+
+/* Card Hover Effect */
+.card-hover-effect {
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.card-hover-effect:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 12px 20px rgba(0, 0, 0, 0.15);
+}
+
+/* Button Animations */
+.trade-btn {
+  position: relative;
+  overflow: hidden;
+  transition: all 0.3s ease;
+  z-index: 1;
+}
+
+.trade-btn::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: rgba(255, 255, 255, 0.2);
+  transition: all 0.4s ease;
+  z-index: -1;
+}
+
+.trade-btn:hover::before {
+  left: 0;
+}
+
+.buy-btn:hover {
+  box-shadow: 0 0 15px rgba(40, 167, 69, 0.5);
+}
+
+.sell-btn:hover {
+  box-shadow: 0 0 15px rgba(220, 53, 69, 0.5);
+}
+
+/* Form Control Styling */
+.form-control-custom {
+  border-radius: 8px;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  padding: 10px 15px;
+  transition: all 0.3s ease;
+}
+
+.form-control-custom:focus {
+  box-shadow: 0 0 0 0.25rem rgba(62, 146, 204, 0.25);
+  border-color: #3e92cc;
+}
+
+.form-select-custom {
+  border-radius: 8px;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  padding: 10px 15px;
+  transition: all 0.3s ease;
+}
+
+.form-select-custom:focus {
+  box-shadow: 0 0 0 0.25rem rgba(62, 146, 204, 0.25);
+  border-color: #3e92cc;
+}
+
+/* Loading Spinner */
+.custom-spinner {
+  width: 50px;
+  height: 50px;
+  border: 5px solid rgba(255, 255, 255, 0.3);
+  border-radius: 50%;
+  border-top-color: #fff;
+  animation: spin 1s ease-in-out infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Notification Badge Animation */
+.notification-badge {
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0% {
+    transform: translate(-50%, -50%) scale(1);
+  }
+  50% {
+    transform: translate(-50%, -50%) scale(1.2);
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(1);
+  }
+}
+
+/* Notification Icon */
+.notification-icon {
+  transition: all 0.3s ease;
+}
+
+.notification-icon:hover {
+  transform: scale(1.2);
+}
+
+.notification-icon-container {
+  padding: 8px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.1);
+  -webkit-backdrop-filter: blur(5px);
+  backdrop-filter: blur(5px);
+  transition: all 0.3s ease;
+}
+
+.notification-icon-container:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+/* Order Book Highlight */
+.highlight-row {
+  transition: background-color 0.3s ease;
+}
+
+.highlight-row:hover {
+  background-color: rgba(62, 146, 204, 0.1);
+}
+
+/* Order Book Update Animation */
+.order-book-container.updating {
+  animation: flash 1s;
+}
+
+@keyframes flash {
+  0%, 50%, 100% {
+    opacity: 1;
+  }
+  25%, 75% {
+    opacity: 0.5;
+  }
+}
+
+/* Notification Panel */
+.notification-panel {
+  max-width: 400px;
+  width: 100%;
+}
+
+.notification-icon-wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+}
+
+.notification-icon {
+  font-size: 1.5rem;
+}
+
+/* Dark Mode Styles */
+.dark-mode {
+  background-color: #121212;
+  color: #f5f5f5;
+}
+
+.dark-mode .card {
+  background-color: #1e1e1e;
+  color: #f5f5f5;
+  border-color: #333;
+}
+
+.dark-mode .table {
+  color: #f5f5f5;
+}
+
+.dark-mode .form-control,
+.dark-mode .form-select {
+  background-color: #2d2d2d;
+  color: #f5f5f5;
+  border-color: #444;
+}
+
+.dark-mode .glass-card {
+  background: rgba(30, 30, 30, 0.7);
+}
